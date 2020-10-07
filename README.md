@@ -54,7 +54,7 @@ How long before the assertion is no longer valid
 Example
 -------
 
-java -jar saml-generator-1.0.jar -domain 7719 -issuer 'http://some.compnay.com' -privateKey saml.pkcs8 -publicKey saml.crt -roles 'role1' -samlAssertionExpirationDays 5 -subject samlUser1
+java -jar saml-generator-1.0.jar -domain 7719 -issuer 'http://some.compnay.com' -privateKey saml.pkcs8 -publicKey saml.crt -roles 'role1' -samlAssertionExpirationDays 5 -subject samlUser1 -audience urn:auth0:tenant:connection
 
 Output:
 ```

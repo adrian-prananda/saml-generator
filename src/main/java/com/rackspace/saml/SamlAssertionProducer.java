@@ -1,11 +1,7 @@
 package com.rackspace.saml;
 
 import java.io.ByteArrayOutputStream;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
@@ -13,37 +9,8 @@ import javax.servlet.http.HttpServletRequest;
 import org.joda.time.DateTime;
 import org.opensaml.DefaultBootstrap;
 import org.opensaml.common.SAMLVersion;
-import org.opensaml.saml2.core.Assertion;
-import org.opensaml.saml2.core.Attribute;
-import org.opensaml.saml2.core.AttributeStatement;
-import org.opensaml.saml2.core.AttributeValue;
-import org.opensaml.saml2.core.AuthnContext;
-import org.opensaml.saml2.core.AuthnContextClassRef;
-import org.opensaml.saml2.core.AuthnRequest;
-import org.opensaml.saml2.core.AuthnStatement;
-import org.opensaml.saml2.core.Issuer;
-import org.opensaml.saml2.core.NameID;
-import org.opensaml.saml2.core.Response;
-import org.opensaml.saml2.core.Status;
-import org.opensaml.saml2.core.StatusCode;
-import org.opensaml.saml2.core.Subject;
-import org.opensaml.saml2.core.SubjectConfirmation;
-import org.opensaml.saml2.core.SubjectConfirmationData;
-import org.opensaml.saml2.core.impl.AssertionBuilder;
-import org.opensaml.saml2.core.impl.AttributeBuilder;
-import org.opensaml.saml2.core.impl.AttributeStatementBuilder;
-import org.opensaml.saml2.core.impl.AuthnContextBuilder;
-import org.opensaml.saml2.core.impl.AuthnContextClassRefBuilder;
-import org.opensaml.saml2.core.impl.AuthnStatementBuilder;
-import org.opensaml.saml2.core.impl.IssuerBuilder;
-import org.opensaml.saml2.core.impl.NameIDBuilder;
-import org.opensaml.saml2.core.impl.ResponseBuilder;
-import org.opensaml.saml2.core.impl.ResponseMarshaller;
-import org.opensaml.saml2.core.impl.StatusBuilder;
-import org.opensaml.saml2.core.impl.StatusCodeBuilder;
-import org.opensaml.saml2.core.impl.SubjectBuilder;
-import org.opensaml.saml2.core.impl.SubjectConfirmationBuilder;
-import org.opensaml.saml2.core.impl.SubjectConfirmationDataBuilder;
+import org.opensaml.saml2.core.*;
+import org.opensaml.saml2.core.impl.*;
 import org.opensaml.xml.schema.XSString;
 import org.opensaml.xml.schema.impl.XSStringBuilder;
 import org.opensaml.xml.signature.Signature;
@@ -59,9 +26,9 @@ public class SamlAssertionProducer {
 	private String privateKeyLocation;
 	private String publicKeyLocation;
 	private CertManager certManager = new CertManager();
-	
+
 	public Response createSAMLResponse(final String subjectId, final DateTime authenticationTime,
-			                           final String credentialType, final HashMap<String, List<String>> attributes, String issuer, Integer samlAssertionDays) {
+			                           final String audienceUri, final HashMap<String, List<String>> attributes, String issuer, Integer samlAssertionDays) {
 		
 		try {
 			DefaultBootstrap.bootstrap();
@@ -72,6 +39,7 @@ public class SamlAssertionProducer {
 			Issuer assertionIssuer = null;
 			Subject subject = null;
 			AttributeStatement attributeStatement = null;
+			Audience audience = null;
 			
 			if (issuer != null) {
 				responseIssuer = createIssuer(issuer);
@@ -87,11 +55,14 @@ public class SamlAssertionProducer {
 			}
 			
 			AuthnStatement authnStatement = createAuthnStatement(authenticationTime);
-			
-			Assertion assertion = createAssertion(new DateTime(), subject, assertionIssuer, authnStatement, attributeStatement);
-			
+			if (audienceUri != null) {
+				audience = new AudienceBuilder().buildObject();
+				audience.setAudienceURI((audienceUri));
+			}
+			Assertion assertion = createAssertion(new DateTime(), subject, assertionIssuer, audience, authnStatement, attributeStatement);
+			assertion.setSignature(signature);
 			Response response = createResponse(new DateTime(), responseIssuer, status, assertion);
-			response.setSignature(signature);
+			//response.setSignature(signature);
 			
 			ResponseMarshaller marshaller = new ResponseMarshaller();
 			Element element = marshaller.marshall(response);
@@ -139,7 +110,7 @@ public class SamlAssertionProducer {
 		return response;
 	}
 	
-	private Assertion createAssertion(final DateTime issueDate, Subject subject, Issuer issuer, AuthnStatement authnStatement,
+	private Assertion createAssertion(final DateTime issueDate, Subject subject, Issuer issuer, Audience audience, AuthnStatement authnStatement,
 			                          AttributeStatement attributeStatement) {
 		AssertionBuilder assertionBuilder = new AssertionBuilder();
 		Assertion assertion = assertionBuilder.buildObject();
@@ -147,6 +118,15 @@ public class SamlAssertionProducer {
 		assertion.setIssueInstant(issueDate);
 		assertion.setSubject(subject);
 		assertion.setIssuer(issuer);
+		Conditions c = new ConditionsBuilder().buildObject();
+		c.getConditions().add(new OneTimeUseBuilder().buildObject());
+
+		AudienceRestriction audienceR = new AudienceRestrictionBuilder().buildObject();
+
+		audienceR.getAudiences().add(audience);
+		c.getAudienceRestrictions().add(audienceR);
+		assertion.setConditions(c);
+
 		
 		if (authnStatement != null)
 			assertion.getAuthnStatements().add(authnStatement);

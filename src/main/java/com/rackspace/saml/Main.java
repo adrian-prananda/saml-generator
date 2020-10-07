@@ -36,7 +36,8 @@ public class Main {
 			options.addOption("publicKey", true, "Location of public key to decrypt assertion");
 			options.addOption("privateKey", true, "Location or private key use to sign assertion");
 			options.addOption("samlAssertionExpirationDays", true, "How long before assertion is no longer valid. Can be negative.");
-			
+			options.addOption("audience", true, "audience of the SAML Response");
+
 			CommandLineParser parser = new GnuParser();
 			CommandLine cmd = parser.parse(options, args);
 

@@ -28,11 +28,11 @@ public class SamlAssertionProducer {
 	private CertManager certManager = new CertManager();
 
 	public Response createSAMLResponse(final String subjectId, final DateTime authenticationTime,
-			                           final String audienceUri, final HashMap<String, List<String>> attributes, String issuer, Integer samlAssertionDays) {
-		
+			                           final String audienceUri, final HashMap<String, List<String>> attributes, String issuer, Integer samlAssertionDays, Boolean signResponse, Boolean signAssertion) {
+
 		try {
 			DefaultBootstrap.bootstrap();
-			
+
 			Signature signature = createSignature();
 			Status status = createStatus();
 			Issuer responseIssuer = null;
@@ -40,42 +40,47 @@ public class SamlAssertionProducer {
 			Subject subject = null;
 			AttributeStatement attributeStatement = null;
 			Audience audience = null;
-			
+
 			if (issuer != null) {
 				responseIssuer = createIssuer(issuer);
 				assertionIssuer = createIssuer(issuer);
 			}
-			
+
 			if (subjectId != null) {
 				subject = createSubject(subjectId, samlAssertionDays);
 			}
-			
+
 			if (attributes != null && attributes.size() != 0) {
 				attributeStatement = createAttributeStatement(attributes);
 			}
-			
+
 			AuthnStatement authnStatement = createAuthnStatement(authenticationTime);
 			if (audienceUri != null) {
 				audience = new AudienceBuilder().buildObject();
 				audience.setAudienceURI((audienceUri));
 			}
 			Assertion assertion = createAssertion(new DateTime(), subject, assertionIssuer, audience, authnStatement, attributeStatement);
-			assertion.setSignature(signature);
+			if (signAssertion) {
+				assertion.setSignature(signature);
+			}
+
 			Response response = createResponse(new DateTime(), responseIssuer, status, assertion);
-			//response.setSignature(signature);
-			
+			if (signResponse) {
+				response.setSignature(signature);
+			}
+
 			ResponseMarshaller marshaller = new ResponseMarshaller();
 			Element element = marshaller.marshall(response);
-			
-			if (signature != null) {
+
+			if (signature != null && (signResponse || signAssertion)) {
 				Signer.signObject(signature);
 			}
-			
+
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
 			XMLHelper.writeNode(element, baos);
-		
+
 			return response;
-			
+
 		} catch (Throwable t) {
 			t.printStackTrace();
 			return null;
@@ -97,7 +102,7 @@ public class SamlAssertionProducer {
 	public void setPublicKeyLocation(String publicKeyLocation) {
 		this.publicKeyLocation = publicKeyLocation;
 	}
-	
+
 	private Response createResponse(final DateTime issueDate, Issuer issuer, Status status, Assertion assertion) {
 		ResponseBuilder responseBuilder = new ResponseBuilder();
 		Response response = responseBuilder.buildObject();
@@ -109,7 +114,7 @@ public class SamlAssertionProducer {
 		response.getAssertions().add(assertion);
 		return response;
 	}
-	
+
 	private Assertion createAssertion(final DateTime issueDate, Subject subject, Issuer issuer, Audience audience, AuthnStatement authnStatement,
 			                          AttributeStatement attributeStatement) {
 		AssertionBuilder assertionBuilder = new AssertionBuilder();
@@ -127,95 +132,95 @@ public class SamlAssertionProducer {
 		c.getAudienceRestrictions().add(audienceR);
 		assertion.setConditions(c);
 
-		
+
 		if (authnStatement != null)
 			assertion.getAuthnStatements().add(authnStatement);
-		
+
 		if (attributeStatement != null)
 			assertion.getAttributeStatements().add(attributeStatement);
-		
+
 		return assertion;
 	}
-	
+
 	private Issuer createIssuer(final String issuerName) {
 		// create Issuer object
 		IssuerBuilder issuerBuilder = new IssuerBuilder();
 		Issuer issuer = issuerBuilder.buildObject();
-		issuer.setValue(issuerName);	
+		issuer.setValue(issuerName);
 		return issuer;
 	}
-	
+
 	private Subject createSubject(final String subjectId, final Integer samlAssertionDays) {
 		DateTime currentDate = new DateTime();
 		if (samlAssertionDays != null)
 			currentDate = currentDate.plusDays(samlAssertionDays);
-		
+
 		// create name element
-		NameIDBuilder nameIdBuilder = new NameIDBuilder(); 
+		NameIDBuilder nameIdBuilder = new NameIDBuilder();
 		NameID nameId = nameIdBuilder.buildObject();
 		nameId.setValue(subjectId);
 		nameId.setFormat("urn:oasis:names:tc:SAML:2.0:nameid-format:persistent");
-	
+
 		SubjectConfirmationDataBuilder dataBuilder = new SubjectConfirmationDataBuilder();
 		SubjectConfirmationData subjectConfirmationData = dataBuilder.buildObject();
 		subjectConfirmationData.setNotOnOrAfter(currentDate);
-		
+
 		SubjectConfirmationBuilder subjectConfirmationBuilder = new SubjectConfirmationBuilder();
 		SubjectConfirmation subjectConfirmation = subjectConfirmationBuilder.buildObject();
 		subjectConfirmation.setMethod("urn:oasis:names:tc:SAML:2.0:cm:bearer");
 		subjectConfirmation.setSubjectConfirmationData(subjectConfirmationData);
-		
+
 		// create subject element
 		SubjectBuilder subjectBuilder = new SubjectBuilder();
 		Subject subject = subjectBuilder.buildObject();
 		subject.setNameID(nameId);
 		subject.getSubjectConfirmations().add(subjectConfirmation);
-		
+
 		return subject;
 	}
-	
+
 	private AuthnStatement createAuthnStatement(final DateTime issueDate) {
 		// create authcontextclassref object
 		AuthnContextClassRefBuilder classRefBuilder = new AuthnContextClassRefBuilder();
 		AuthnContextClassRef classRef = classRefBuilder.buildObject();
 		classRef.setAuthnContextClassRef("urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport");
-		
+
 		// create authcontext object
 		AuthnContextBuilder authContextBuilder = new AuthnContextBuilder();
 		AuthnContext authnContext = authContextBuilder.buildObject();
 		authnContext.setAuthnContextClassRef(classRef);
-		
+
 		// create authenticationstatement object
 		AuthnStatementBuilder authStatementBuilder = new AuthnStatementBuilder();
 		AuthnStatement authnStatement = authStatementBuilder.buildObject();
 		authnStatement.setAuthnInstant(issueDate);
 		authnStatement.setAuthnContext(authnContext);
-		
+
 		return authnStatement;
 	}
-	
+
 	private AttributeStatement createAttributeStatement(HashMap<String, List<String>> attributes) {
 		// create authenticationstatement object
 		AttributeStatementBuilder attributeStatementBuilder = new AttributeStatementBuilder();
 		AttributeStatement attributeStatement = attributeStatementBuilder.buildObject();
-		
+
 		AttributeBuilder attributeBuilder = new AttributeBuilder();
 		if (attributes != null) {
 			for (Map.Entry<String, List<String>> entry : attributes.entrySet()) {
 				Attribute attribute = attributeBuilder.buildObject();
 				attribute.setName(entry.getKey());
-				
+
 				for (String value : entry.getValue()) {
 					XSStringBuilder stringBuilder = new XSStringBuilder();
 					XSString attributeValue = stringBuilder.buildObject(AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);
 					attributeValue.setValue(value);
 					attribute.getAttributeValues().add(attributeValue);
 				}
-				
+
 				attributeStatement.getAttributes().add(attribute);
 			}
 		}
-		
+
 		return attributeStatement;
 	}
 
@@ -230,7 +235,7 @@ public class SamlAssertionProducer {
 
 		return status;
 	}
-	
+
 	private Signature createSignature() throws Throwable {
 		if (publicKeyLocation != null && privateKeyLocation != null) {
 			SignatureBuilder builder = new SignatureBuilder();
@@ -238,10 +243,10 @@ public class SamlAssertionProducer {
 			signature.setSigningCredential(certManager.getSigningCredential(publicKeyLocation, privateKeyLocation));
 			signature.setSignatureAlgorithm(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA1);
 			signature.setCanonicalizationAlgorithm(SignatureConstants.ALGO_ID_C14N_EXCL_OMIT_COMMENTS);
-			
+
 			return signature;
 		}
-		
+
 		return null;
 	}
 }

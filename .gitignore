@@ -2,3 +2,6 @@
 *.iml
 dependency-reduced-pom.xml
 target/*
+*.pkcs8
+*.crt
+*.pem

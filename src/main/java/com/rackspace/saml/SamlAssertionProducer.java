@@ -33,7 +33,8 @@ public class SamlAssertionProducer {
 		try {
 			DefaultBootstrap.bootstrap();
 
-			Signature signature = createSignature();
+			Signature signatureForAssertion = null;
+			Signature signatureForResponse = null;
 			Status status = createStatus();
 			Issuer responseIssuer = null;
 			Issuer assertionIssuer = null;
@@ -61,19 +62,25 @@ public class SamlAssertionProducer {
 			}
 			Assertion assertion = createAssertion(new DateTime(), subject, assertionIssuer, audience, authnStatement, attributeStatement);
 			if (signAssertion) {
-				assertion.setSignature(signature);
+				signatureForAssertion = createSignature();
+				assertion.setSignature(signatureForAssertion);
 			}
 
 			Response response = createResponse(new DateTime(), responseIssuer, status, assertion);
 			if (signResponse) {
-				response.setSignature(signature);
+				signatureForResponse = createSignature();
+				response.setSignature(signatureForResponse);
 			}
 
 			ResponseMarshaller marshaller = new ResponseMarshaller();
 			Element element = marshaller.marshall(response);
 
-			if (signature != null && (signResponse || signAssertion)) {
-				Signer.signObject(signature);
+			if (signatureForAssertion != null) {
+				Signer.signObject(signatureForAssertion);
+			}
+
+			if (signatureForResponse != null) {
+				Signer.signObject(signatureForResponse);
 			}
 
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
